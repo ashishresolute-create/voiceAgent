@@ -1,0 +1,121 @@
+// prisma/schema.prisma
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+model Patient {
+  id               String        @id @default(uuid())
+  phone            String        @unique
+  name             String?
+  preferredLang    Language      @default(EN)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  appointments     Appointment[]
+  memories         Memory[]
+  campaignLogs     CampaignLog[]
+}
+
+model Doctor {
+  id           String        @id @default(uuid())
+  name         String
+  specialty    String
+  phone        String?
+  appointments Appointment[]
+  slots        Slot[]
+}
+
+model Slot {
+  id          String      @id @default(uuid())
+  doctorId    String
+  doctor      Doctor      @relation(fields: [doctorId], references: [id])
+  startTime   DateTime
+  endTime     DateTime
+  isBooked    Boolean     @default(false)
+  appointment Appointment?
+
+  @@index([doctorId, startTime])
+  @@index([startTime, isBooked])
+}
+
+model Appointment {
+  id          String            @id @default(uuid())
+  patientId   String
+  patient     Patient           @relation(fields: [patientId], references: [id])
+  doctorId    String
+  doctor      Doctor            @relation(fields: [doctorId], references: [id])
+  slotId      String            @unique
+  slot        Slot              @relation(fields: [slotId], references: [id])
+  status      AppointmentStatus @default(CONFIRMED)
+  reason      String?
+  notes       String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([patientId])
+  @@index([doctorId])
+}
+
+model Memory {
+  id          String                    @id @default(uuid())
+  patientId   String
+  patient     Patient                   @relation(fields: [patientId], references: [id])
+  content     String
+  embedding   Unsupported("vector(1536)")?
+  type        MemoryType
+  createdAt   DateTime                  @default(now())
+
+  @@index([patientId, createdAt])
+}
+
+model CampaignLog {
+  id          String         @id @default(uuid())
+  patientId   String
+  patient     Patient        @relation(fields: [patientId], references: [id])
+  type        CampaignType
+  status      CampaignStatus @default(PENDING)
+  scheduledAt DateTime
+  completedAt DateTime?
+  outcome     String?
+  createdAt   DateTime       @default(now())
+}
+
+enum Language {
+  EN
+  HI
+  TA
+}
+
+enum AppointmentStatus {
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  RESCHEDULED
+}
+
+enum MemoryType {
+  INTERACTION_SUMMARY
+  PREFERENCE
+  APPOINTMENT_HISTORY
+  PATIENT_NOTE
+}
+
+enum CampaignType {
+  REMINDER
+  FOLLOW_UP
+  CANCELLATION_NOTICE
+}
+
+enum CampaignStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  REJECTED
+}
